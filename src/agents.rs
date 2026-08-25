@@ -96,4 +96,24 @@ mod tests {
             "# Existing\n\nKeep this."
         );
     }
+
+    #[test]
+    fn apply_replaces_controlled_block() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("AGENTS.md");
+        apply(&path, "<!-- memocap:begin -->\nold\n<!-- memocap:end -->").unwrap();
+        apply(&path, "<!-- memocap:begin -->\nnew\n<!-- memocap:end -->").unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("new"));
+        assert!(!text.contains("old"));
+        assert_eq!(text.matches(AGENTS_BEGIN).count(), 1);
+    }
+
+    #[test]
+    fn incomplete_marker_is_error() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("AGENTS.md");
+        fs::write(&path, "<!-- memocap:begin -->\nbroken").unwrap();
+        assert!(apply(&path, "<!-- memocap:begin -->\nx\n<!-- memocap:end -->").is_err());
+    }
 }

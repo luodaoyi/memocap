@@ -39,7 +39,8 @@ pub fn run() -> Result<()> {
 
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
     let mut selected = 0;
-    let mut message = "选择安装范围后按 Enter。memocap 不会自动保存对话。".to_owned();
+    let mut message =
+        "选择后按 Enter。言必检每句先 recall；值必存记下决策/偏好/任务/约定/上下文。".to_owned();
     loop {
         terminal.draw(|frame| render(frame, selected, &message))?;
         if !event::poll(Duration::from_millis(250))? {
@@ -77,7 +78,7 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()>
 fn install_message(global: bool) -> String {
     match install::install(global) {
         Ok(result) => format!(
-            "已配置 {}。重开 Codex 会话即可加载。",
+            "已配置 {}。重开宿主会话即可加载。",
             result.agents_path.display()
         ),
         Err(error) => format!("配置失败：{error:#}"),
@@ -113,7 +114,7 @@ fn render(frame: &mut ratatui::Frame, selected: usize, message: &str) {
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::raw("  本地 Codex 记忆配置"),
+            Span::raw("  本地记忆"),
         ]))
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL)),
@@ -155,5 +156,9 @@ mod tests {
     fn menu_has_project_and_global_options() {
         assert!(ACTIONS[0].contains("当前项目"));
         assert!(ACTIONS[1].contains("全部"));
+        assert!(ACTIONS.iter().any(|action| action.contains("状态")));
+        assert!(ACTIONS
+            .iter()
+            .any(|action| action.contains("移除") || action.contains("卸载")));
     }
 }

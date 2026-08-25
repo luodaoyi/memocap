@@ -1,10 +1,14 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use memocap::{install, paths::Paths, store, tui};
+use memocap::{cli, install, paths::Paths, tui};
 
 #[derive(Parser)]
-#[command(name = "memocap", version, about = "Local-first memory for Codex")]
+#[command(
+    name = "memocap",
+    version,
+    about = "Local SQLite memory shared by four hosts"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -54,33 +58,37 @@ enum Command {
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
-    match cli.command.unwrap_or(Command::Ui) {
+    let args = Cli::parse();
+    match args.command.unwrap_or(Command::Ui) {
         Command::Remember {
             content,
             r#type,
             tags,
         } => {
             let paths = Paths::discover()?;
-            let connection = store::open(&paths.database)?;
-            let id = store::remember(&connection, &content, &r#type, &tags)?;
-            println!("记忆已保存：#{id}");
+            let id = cli::remember(&paths.database, &content, &r#type, &tags)?;
+            println!("saved #{id}");
         }
-        Command::Recall { query, limit } => print_memories(store::recall(
-            &store::open(&Paths::discover()?.database)?,
-            &query,
-            limit,
-        )?),
-        Command::List { limit } => print_memories(store::list(
-            &store::open(&Paths::discover()?.database)?,
-            limit,
-        )?),
+        Command::Recall { query, limit } => {
+            let paths = Paths::discover()?;
+            print!(
+                "{}",
+                cli::format_memories(&cli::recall(&paths.database, &query, limit)?)
+            );
+        }
+        Command::List { limit } => {
+            let paths = Paths::discover()?;
+            print!(
+                "{}",
+                cli::format_memories(&cli::list(&paths.database, limit)?)
+            );
+        }
         Command::Forget { id } => {
             let paths = Paths::discover()?;
-            if store::forget(&store::open(&paths.database)?, id)? {
-                println!("已删除记忆：#{id}");
+            if cli::forget(&paths.database, id)? {
+                println!("deleted #{id}");
             } else {
-                println!("未找到记忆：#{id}");
+                println!("not found #{id}");
             }
         }
         Command::Install { global } => {
@@ -90,37 +98,29 @@ fn main() -> Result<()> {
             println!("数据库：{}", result.database.display());
         }
         Command::Uninstall { global } => {
-            println!(if install::uninstall(global)? {
-                "已移除 memocap 配置。"
-            } else {
-                "未找到 memocap 配置，未做修改。"
-            });
+            println!(
+                "{}",
+                if install::uninstall(global)? {
+                    "removed memocap config"
+                } else {
+                    "no memocap config found"
+                }
+            );
         }
         Command::Status { global } => {
             let result = install::status(global)?;
-            let count = store::open(&result.database)
-                .and_then(|connection| store::count(&connection))
-                .unwrap_or(0);
-            println!("AGENTS.md：{}", result.agents_path.display());
-            println!("已注入：{}", if result.configured { "是" } else { "否" });
-            println!("数据库：{}", result.database.display());
-            println!("记忆数量：{count}");
+            let count = cli::count(&result.database).unwrap_or(0);
+            print!(
+                "{}",
+                cli::format_status(
+                    &result.database,
+                    count,
+                    &result.agents_path,
+                    result.configured
+                )
+            );
         }
         Command::Ui => tui::run()?,
     }
     Ok(())
-}
-
-fn print_memories(memories: Vec<store::Memory>) {
-    if memories.is_empty() {
-        println!("没有找到本地记忆。");
-        return;
-    }
-    for memory in memories {
-        println!("#{} [{}] {}", memory.id, memory.kind, memory.content);
-        if !memory.tags.is_empty() {
-            println!("  标签：{}", memory.tags);
-        }
-        println!("  时间：{}", memory.created_at);
-    }
 }

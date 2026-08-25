@@ -3,7 +3,7 @@ name = "memocap"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
-description = "Local-first memory capsules for Codex"
+description = "Local-first shared memory CLI"
 license = "MIT"
 repository = "https://github.com/luodaoyi/memocap"
 

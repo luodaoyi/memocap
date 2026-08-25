@@ -1,0 +1,14 @@
+services:
+  memocap:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      MEMOCAP_TOKEN: ${MEMOCAP_TOKEN:?set MEMOCAP_TOKEN}
+      MEMOCAP_DATA_DIR: /data
+    volumes:
+      - memocap-data:/data
+    command: ["serve", "--bind", "0.0.0.0:8787"]
+
+volumes:
+  memocap-data:

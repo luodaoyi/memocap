@@ -52,3 +52,17 @@ pub fn format_status(database: &Path, count: i64, agents_path: &Path, configured
         if configured { "yes" } else { "no" }
     )
 }
+
+#[must_use]
+pub fn format_remote_status(
+    address: &str,
+    count: i64,
+    agents_path: &Path,
+    configured: bool,
+) -> String {
+    format!(
+        "remote: {address}\ncount: {count}\nAGENTS.md: {}\nconfigured: {}\n",
+        agents_path.display(),
+        if configured { "yes" } else { "no" }
+    )
+}

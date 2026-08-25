@@ -6,6 +6,7 @@ use anyhow::{anyhow, Result};
 pub struct Paths {
     pub home: PathBuf,
     pub codex_home: PathBuf,
+    pub claude_home: PathBuf,
     pub data_dir: PathBuf,
     pub database: PathBuf,
     pub installed_binary: PathBuf,
@@ -24,9 +25,19 @@ impl Paths {
         let codex_home = env::var_os("CODEX_HOME")
             .filter(|value| !value.is_empty())
             .map_or_else(|| home.join(".codex"), PathBuf::from);
+        let claude_home = env::var_os("CLAUDE_HOME")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| {
+                env::var_os("CLAUDE_CONFIG_DIR")
+                    .filter(|value| !value.is_empty())
+                    .map(PathBuf::from)
+            })
+            .unwrap_or_else(|| home.join(".claude"));
         Ok(Self {
             installed_binary: codex_home.join("bin").join(binary_name()),
             database: data_dir.join("memocap.db"),
+            claude_home,
             codex_home,
             data_dir,
             home,

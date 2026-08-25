@@ -85,6 +85,9 @@ fn install_message(global: bool) -> String {
 }
 
 fn status_message() -> String {
+    if let Some(address) = crate::config::configured_address() {
+        return format!("remote {address}; local SQLite only when no address is set");
+    }
     let paths = match Paths::discover() {
         Ok(paths) => paths,
         Err(error) => return format!("读取状态失败：{error:#}"),

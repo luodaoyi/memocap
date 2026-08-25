@@ -1,13 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use memocap::{cli, install, paths::Paths, tui};
+use memocap::{cli, config, config::Target, install, paths::Paths, remote, server, tui};
 
 #[derive(Parser)]
 #[command(
     name = "memocap",
     version,
-    about = "Local SQLite memory shared by four hosts"
+    about = "SQLite memory shared by four hosts"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -16,7 +16,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Store an explicit local memory.
+    /// Store an explicit memory.
     Remember {
         content: String,
         #[arg(long, default_value = "context")]
@@ -24,26 +24,26 @@ enum Command {
         #[arg(long, default_value = "")]
         tags: String,
     },
-    /// Search local memory using SQLite full-text search.
+    /// Search memory using SQLite full-text search.
     Recall {
         query: String,
         #[arg(long, default_value_t = 5)]
         limit: usize,
     },
-    /// Show newest local memories.
+    /// Show newest memories.
     List {
         #[arg(long, default_value_t = 20)]
         limit: usize,
     },
     /// Delete one memory by ID.
     Forget { id: i64 },
-    /// Copy this binary and configure a managed AGENTS.md block.
+    /// Copy this binary and configure official host rule files.
     Install {
-        /// Configure ~/.codex/AGENTS.md instead of ./AGENTS.md.
+        /// Configure ~/.codex/AGENTS.md and ~/.claude instead of project files.
         #[arg(long)]
         global: bool,
     },
-    /// Remove only memocap's managed AGENTS.md block.
+    /// Remove only memocap's managed rule blocks.
     Uninstall {
         #[arg(long)]
         global: bool,
@@ -52,6 +52,11 @@ enum Command {
     Status {
         #[arg(long)]
         global: bool,
+    },
+    /// Serve the same SQLite over HTTP. Token required.
+    Serve {
+        #[arg(long, default_value = "127.0.0.1:8787")]
+        bind: String,
     },
     /// Open the interactive installer.
     Ui,
@@ -65,35 +70,49 @@ fn main() -> Result<()> {
             r#type,
             tags,
         } => {
-            let paths = Paths::discover()?;
-            let id = cli::remember(&paths.database, &content, &r#type, &tags)?;
+            let id = match config::resolve_target()? {
+                Target::Local { database } => cli::remember(&database, &content, &r#type, &tags)?,
+                Target::Remote { address, token } => {
+                    remote::remember(&address, &token, &content, &r#type, &tags)?
+                }
+            };
             println!("saved #{id}");
         }
         Command::Recall { query, limit } => {
-            let paths = Paths::discover()?;
-            print!(
-                "{}",
-                cli::format_memories(&cli::recall(&paths.database, &query, limit)?)
-            );
+            let memories = match config::resolve_target()? {
+                Target::Local { database } => cli::recall(&database, &query, limit)?,
+                Target::Remote { address, token } => {
+                    remote::recall(&address, &token, &query, limit)?
+                }
+            };
+            print!("{}", cli::format_memories(&memories));
         }
         Command::List { limit } => {
-            let paths = Paths::discover()?;
-            print!(
-                "{}",
-                cli::format_memories(&cli::list(&paths.database, limit)?)
-            );
+            let memories = match config::resolve_target()? {
+                Target::Local { database } => cli::list(&database, limit)?,
+                Target::Remote { address, token } => remote::list(&address, &token, limit)?,
+            };
+            print!("{}", cli::format_memories(&memories));
         }
         Command::Forget { id } => {
-            let paths = Paths::discover()?;
-            if cli::forget(&paths.database, id)? {
-                println!("deleted #{id}");
-            } else {
-                println!("not found #{id}");
-            }
+            let deleted = match config::resolve_target()? {
+                Target::Local { database } => cli::forget(&database, id)?,
+                Target::Remote { address, token } => remote::forget(&address, &token, id)?,
+            };
+            println!(
+                "{}",
+                if deleted {
+                    format!("deleted #{id}")
+                } else {
+                    format!("not found #{id}")
+                }
+            );
         }
         Command::Install { global } => {
             let result = install::install(global)?;
             println!("已配置：{}", result.agents_path.display());
+            println!("CLAUDE.md：{}", result.claude_path.display());
+            println!("skill：{}", result.skill_path.display());
             println!("程序：{}", result.binary.display());
             println!("数据库：{}", result.database.display());
         }
@@ -109,16 +128,37 @@ fn main() -> Result<()> {
         }
         Command::Status { global } => {
             let result = install::status(global)?;
-            let count = cli::count(&result.database).unwrap_or(0);
-            print!(
-                "{}",
-                cli::format_status(
-                    &result.database,
-                    count,
-                    &result.agents_path,
-                    result.configured
-                )
-            );
+            match config::resolve_target()? {
+                Target::Local { database } => {
+                    let count = cli::count(&database).unwrap_or(0);
+                    print!(
+                        "{}",
+                        cli::format_status(
+                            &database,
+                            count,
+                            &result.agents_path,
+                            result.configured
+                        )
+                    );
+                }
+                Target::Remote { address, token } => {
+                    let count = remote::count(&address, &token).unwrap_or(0);
+                    print!(
+                        "{}",
+                        cli::format_remote_status(
+                            &address,
+                            count,
+                            &result.agents_path,
+                            result.configured
+                        )
+                    );
+                }
+            }
+        }
+        Command::Serve { bind } => {
+            let token = config::require_token()?;
+            let paths = Paths::discover()?;
+            server::serve(&bind, &token, &paths.database)?;
         }
         Command::Ui => tui::run()?,
     }

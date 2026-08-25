@@ -8,9 +8,8 @@
 - 言必检：每句话先 recall 再答。
 - 值必存：有决策、偏好、任务、约定、上下文就主动存。先查同类再 store，存了要告诉你。卡住先翻记忆。
 - 四端安装：`pnpm add -g memocap` 或 `npm i -g memocap`，然后一条 `memocap`。 Codex / Claude Code 用 `memocap install` 写规则； Pi：`pi install npm:memocap`； OpenCode 能 plugin add 就走官方插件。
-- V1 禁止任何服务端代码。本机 SQLite，默认不联网。
-- Docker Compose 远程库只属于下一版。没配地址继续本地。现在不要实现。
-- 鉴权、多租户：待决，现在不设计。
+- 同一份 SQLite。默认本机、不联网。配了地址和 token 才走 HTTP。
+- Compose：数据卷 + 一个端口。薄 HTTP。共享 token，不多租户。没配地址继续本地。
 
 ## 背景
 
@@ -48,11 +47,11 @@
 
 ### 必须避免
 
-- V1 禁止：embedding、Chroma、遗忘曲线、胶囊、可视化、OpenClaw、任何服务端代码。
+- 禁止：embedding、Chroma、遗忘曲线、胶囊、可视化、OpenClaw。不多租户，不另开第二份记忆库。
 - embedding、向量库、Python、Chroma。
 - 遗忘曲线、胶囊、可视化。
 - OpenClaw。
-- 任何服务端代码：没有 HTTP 服务、没有常驻 daemon、没有远程库。
+- 远程是可选的薄 HTTP，前面还是同一份 SQLite。没配地址不联网。
 - 默认网络通信、遥测、上传或第三方 API。
 - 读取用户目录中与本工具无关的文件。
 - 用一个命令批量删除或覆盖记忆库，除非用户明确确认。
@@ -143,14 +142,11 @@ Claude skill / CLAUDE.md、Pi package、OpenCode 插件用同一组动词和同�
 
 模板中的二进制调用路径要跨平台可靠。如果在 `~/.codex/bin/` 安装二进制，应确认 Windows、macOS、Linux 的可执行文件命名、Shell 调用和 PATH 预期。
 
-## 下一版
+## 远程库
 
-**本节只属于下一版，不是 V1。现在不要实现。** V1 仍然是本机 SQLite，默认离线，不含任何服务端代码。不要提前把服务端骨架塞进 V1。
+同一份 SQLite。Compose = 数据卷 + 一个端口。薄 HTTP。共享 token，不多租户。
 
-- 可选远程记忆库，给多机、多会话共用一份存储。
-- Docker Compose 一条命令拉起远程库。
-- CLI 只有配置了地址才连远程；地址未设则继续走本机。
-- 鉴权、多租户：待决，现在不设计。
+- CLI 只有配置了地址和 token 才连远程；地址未设则继续走本机，不发起网络。
 - 远程库仍是同一份记忆、同一套 remember / recall / list / forget。不另抄 Python / Chroma，不发明自动检索。
 
 ## 开发顺序
@@ -171,7 +167,7 @@ Claude skill / CLAUDE.md、Pi package、OpenCode 插件用同一组动词和同�
 1. 运行二进制能打开 TUI。
 2. 选择“当前项目配置”后，项目 `AGENTS.md` 有且仅有一个 memocap 受控区块。
 3. 重复配置不会复制区块，也不影响既有项目规则。
-4. 四个宿主按各自官方入口接到同一条 CLI；规则编码值必存、言必检：每句先 recall 再答，有决策/偏好/任务/约定/上下文就主动 store。四个宿主读写同一份 SQLite。V1 树里没有服务端代码。
+4. 四个宿主按各自官方入口接到同一条 CLI；规则编码值必存、言必检：每句先 recall 再答，有决策/偏好/任务/约定/上下文就主动 store。四个宿主读写同一份 SQLite。没配地址不联网。
 5. `remember` 后 `recall` 能检索到内容；`list` 可显示；`forget <id>` 只删除目标记录。
 6. 卸载后只删除 memocap 区块，原有 `AGENTS.md` 内容仍完整。
 7. 三平台 GitHub Actions 对同一最终 head 全绿，并确认 Windows release artifact 可下载。
@@ -186,7 +182,7 @@ Claude skill / CLAUDE.md、Pi package、OpenCode 插件用同一组动词和同�
 - 是否需要编辑记忆？第一版可以先没有 `edit`，用删除后重建替代。
 - 是否需要备份？若需要，应当是用户显式导出到明确路径，而非自动生成任意路径备份。
 - 何时、以什么指标引入语义检索？在此之前保持 SQLite FTS。
-- 下一版的鉴权与多租户：待决，现在不设计。
+- 共享 token。不多租户。
 
 ## 当前原型的定位
 

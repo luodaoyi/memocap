@@ -13,4 +13,7 @@ AGENTS.md
 
 # Never commit local release artifacts
 *.exe
-memocap
+/memocap
+
+CLAUDE.md
+.claude/

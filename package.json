@@ -1,12 +1,15 @@
 {
   "name": "memocap",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SQLite memory shared by Codex, Claude, Pi, and OpenCode",
   "license": "MIT",
   "type": "module",
   "main": "./plugin/index.js",
   "exports": {
     ".": "./plugin/index.js"
+  },
+  "bin": {
+    "memocap": "bin/cli.cjs"
   },
   "keywords": [
     "pi-package"
@@ -21,6 +24,7 @@
     ]
   },
   "files": [
+    "bin",
     "plugin",
     "skills",
     "README.md",

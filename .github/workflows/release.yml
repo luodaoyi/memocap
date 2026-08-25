@@ -5,7 +5,7 @@ on:
     inputs:
       ref:
         description: git ref to publish
-        default: v0.1.0
+        default: v0.1.1
         type: string
   push:
     tags:
@@ -15,7 +15,74 @@ permissions:
   contents: read
 
 jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - id: meta
+        run: |
+          TAG="${{ github.event.inputs.ref || github.ref_name }}"
+          TAG="${TAG#refs/tags/}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Ensure GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}"; then
+            echo "release $TAG exists"
+          else
+            gh release create "$TAG" --repo "${{ github.repository }}" --title "$TAG" --notes "memocap $TAG"
+          fi
+
+  binaries:
+    name: build (${{ matrix.target }})
+    needs: release
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: memocap-x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset: memocap-aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset: memocap-x86_64-pc-windows-msvc.exe
+    steps:
+      - uses: actions/checkout@1044a6dea927916f2c38ba5aeffbc0a847b1221a
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.inputs.ref || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Stage Linux/macOS asset
+        if: runner.os != 'Windows'
+        run: cp "target/${{ matrix.target }}/release/memocap" "${{ matrix.asset }}"
+      - name: Stage Windows asset
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Copy-Item "target/${{ matrix.target }}/release/memocap.exe" "${{ matrix.asset }}"
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release upload "${{ needs.release.outputs.tag }}" "${{ matrix.asset }}" --repo "${{ github.repository }}" --clobber
+
   registry:
+    needs: binaries
     runs-on: ubuntu-24.04
     permissions:
       contents: read

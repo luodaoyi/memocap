@@ -39,3 +39,20 @@ fn pi_skills_point_at_skill_md_dir() {
     let pkg = include_str!("../package.json");
     assert!(pkg.contains("./skills/memocap"));
 }
+
+#[test]
+fn package_json_has_bin_launcher() {
+    let pkg = include_str!("../package.json");
+    assert!(pkg.contains("\"memocap\": \"bin/cli.cjs\""));
+}
+
+#[test]
+fn bin_launcher_downloads_release_assets() {
+    let launcher = include_str!("../bin/cli.cjs");
+    assert!(launcher.contains("memocap-x86_64-unknown-linux-gnu"));
+    assert!(launcher.contains("memocap-aarch64-apple-darwin"));
+    assert!(launcher.contains("memocap-x86_64-pc-windows-msvc.exe"));
+    assert!(launcher.contains("spawnSync"));
+    assert!(!launcher.contains("better-sqlite"));
+    assert!(!launcher.to_lowercase().contains("chroma"));
+}

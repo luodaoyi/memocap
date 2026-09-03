@@ -5,7 +5,12 @@ use std::{
 
 use anyhow::{Context, Result};
 
-use crate::{agents, agents_block, paths::Paths, skill_markdown};
+use crate::{
+    agents, agents_block,
+    hosts::{self, Host},
+    paths::Paths,
+    skill_markdown,
+};
 
 #[derive(Debug)]
 pub struct InstallStatus {
@@ -14,7 +19,11 @@ pub struct InstallStatus {
     pub agents_path: PathBuf,
     pub claude_path: PathBuf,
     pub skill_path: PathBuf,
+    pub grok_skill_path: PathBuf,
     pub configured: bool,
+    pub selected: Vec<Host>,
+    pub written: Vec<PathBuf>,
+    pub hints: Vec<String>,
 }
 
 #[must_use]
@@ -68,49 +77,143 @@ fn host_files(global: bool, paths: &Paths) -> Result<(PathBuf, PathBuf, PathBuf)
     }
 }
 
-pub fn install(global: bool) -> Result<InstallStatus> {
-    let paths = Paths::discover()?;
+pub fn install(global: bool, hosts: &[Host]) -> Result<InstallStatus> {
+    install_with(&Paths::discover()?, global, hosts)
+}
+
+pub fn install_with(paths: &Paths, global: bool, hosts: &[Host]) -> Result<InstallStatus> {
     let source = env::current_exe().context("无法定位当前 memocap 可执行文件")?;
     if source != paths.installed_binary {
         copy_binary(&source, &paths.installed_binary)?;
     }
-    let (agents_path, claude_path, skill_path) = host_files(global, &paths)?;
+    apply_hosts(paths, global, hosts)
+}
+
+pub fn uninstall(global: bool, hosts: &[Host]) -> Result<bool> {
+    uninstall_with(&Paths::discover()?, global, hosts)
+}
+
+pub fn status(global: bool, hosts: &[Host]) -> Result<InstallStatus> {
+    status_with(&Paths::discover()?, global, hosts)
+}
+
+fn apply_hosts(paths: &Paths, global: bool, hosts: &[Host]) -> Result<InstallStatus> {
+    let cwd = env::current_dir()?;
+    let (agents_path, claude_path, skill_path) = host_files(global, paths)?;
+    let grok_skill = hosts::grok_skill_path(global, paths, &cwd);
     let binary = display_binary(&paths.installed_binary);
     let block = agents_block(&binary);
-    agents::apply(&agents_path, &block)?;
-    agents::apply(&claude_path, &block)?;
-    agents::apply(&skill_path, &skill_markdown(&binary))?;
+    let skill = skill_markdown(&binary);
+    let mut written = Vec::new();
+    let mut hints = Vec::new();
+    for host in hosts {
+        match host {
+            Host::Codex => {
+                agents::apply(&agents_path, &block)?;
+                written.push(agents_path.clone());
+            }
+            Host::Claude => {
+                agents::apply(&claude_path, &block)?;
+                agents::apply(&skill_path, &skill)?;
+                written.push(claude_path.clone());
+                written.push(skill_path.clone());
+            }
+            Host::Grok => {
+                agents::apply(&grok_skill, &skill)?;
+                written.push(grok_skill.clone());
+                for candidate in hosts::grok_agent_candidates(global, paths, &cwd) {
+                    if candidate.is_file() {
+                        agents::apply(&candidate, &block)?;
+                        written.push(candidate);
+                    }
+                }
+            }
+            Host::Pi | Host::OpenCode => {
+                if let Some(text) = host.hint() {
+                    hints.push(text.to_owned());
+                }
+            }
+        }
+    }
     Ok(InstallStatus {
         configured: true,
-        binary: paths.installed_binary,
-        database: paths.database,
+        binary: paths.installed_binary.clone(),
+        database: paths.database.clone(),
         agents_path,
         claude_path,
         skill_path,
+        grok_skill_path: grok_skill,
+        selected: hosts.to_vec(),
+        written,
+        hints,
     })
 }
 
-pub fn uninstall(global: bool) -> Result<bool> {
-    let paths = Paths::discover()?;
-    let (agents_path, claude_path, skill_path) = host_files(global, &paths)?;
-    let removed_agents = agents::remove(&agents_path)?;
-    let removed_claude = agents::remove(&claude_path)?;
-    let removed_skill = agents::remove(&skill_path)?;
-    Ok(removed_agents || removed_claude || removed_skill)
+pub fn uninstall_with(paths: &Paths, global: bool, hosts: &[Host]) -> Result<bool> {
+    let cwd = env::current_dir()?;
+    let (agents_path, claude_path, skill_path) = host_files(global, paths)?;
+    let mut removed = false;
+    for host in hosts {
+        match host {
+            Host::Codex => removed |= agents::remove(&agents_path)?,
+            Host::Claude => {
+                removed |= agents::remove(&claude_path)?;
+                removed |= agents::remove(&skill_path)?;
+            }
+            Host::Grok => {
+                removed |= agents::remove(&hosts::grok_skill_path(global, paths, &cwd))?;
+                for candidate in hosts::grok_agent_candidates(global, paths, &cwd) {
+                    removed |= agents::remove(&candidate)?;
+                }
+            }
+            Host::Pi | Host::OpenCode => {}
+        }
+    }
+    Ok(removed)
 }
 
-pub fn status(global: bool) -> Result<InstallStatus> {
-    let paths = Paths::discover()?;
-    let (agents_path, claude_path, skill_path) = host_files(global, &paths)?;
+pub fn status_with(paths: &Paths, global: bool, hosts: &[Host]) -> Result<InstallStatus> {
+    let cwd = env::current_dir()?;
+    let (agents_path, claude_path, skill_path) = host_files(global, paths)?;
+    let grok_skill = hosts::grok_skill_path(global, paths, &cwd);
+    let mut written = Vec::new();
+    let mut configured = false;
+    for host in hosts {
+        match host {
+            Host::Codex => {
+                written.push(agents_path.clone());
+                configured |= agents::contains_managed_block(&agents_path)?;
+            }
+            Host::Claude => {
+                written.push(claude_path.clone());
+                written.push(skill_path.clone());
+                configured |= agents::contains_managed_block(&claude_path)?;
+                configured |= agents::contains_managed_block(&skill_path)?;
+            }
+            Host::Grok => {
+                written.push(grok_skill.clone());
+                configured |= agents::contains_managed_block(&grok_skill)?;
+                for candidate in hosts::grok_agent_candidates(global, paths, &cwd) {
+                    if candidate.is_file() {
+                        written.push(candidate.clone());
+                        configured |= agents::contains_managed_block(&candidate)?;
+                    }
+                }
+            }
+            Host::Pi | Host::OpenCode => {}
+        }
+    }
     Ok(InstallStatus {
-        configured: agents::contains_managed_block(&agents_path)?
-            || agents::contains_managed_block(&claude_path)?
-            || agents::contains_managed_block(&skill_path)?,
-        binary: paths.installed_binary,
-        database: paths.database,
+        configured,
+        binary: paths.installed_binary.clone(),
+        database: paths.database.clone(),
         agents_path,
         claude_path,
         skill_path,
+        grok_skill_path: grok_skill,
+        selected: hosts.to_vec(),
+        written,
+        hints: Vec::new(),
     })
 }
 
@@ -150,6 +253,7 @@ mod tests {
             home: PathBuf::from("/home/test"),
             codex_home: PathBuf::from("/home/test/.codex"),
             claude_home: PathBuf::from("/home/test/.claude"),
+            grok_home: PathBuf::from("/home/test/.grok"),
             data_dir: PathBuf::from("/home/test/.memocap"),
             database: PathBuf::from("/home/test/.memocap/memocap.db"),
             installed_binary: PathBuf::from("/home/test/.codex/bin/memocap"),

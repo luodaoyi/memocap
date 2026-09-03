@@ -147,3 +147,17 @@ fn recall_kind_filter() {
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].kind, "note");
 }
+
+#[test]
+fn status_lists_host_files() {
+    use std::path::PathBuf;
+    let text = cli::format_status(
+        std::path::Path::new("/tmp/db"),
+        3,
+        &[PathBuf::from("/tmp/.grok/skills/memocap/SKILL.md")],
+        true,
+    );
+    assert!(text.contains("configured: yes"));
+    assert!(text.contains("SKILL.md"));
+    assert!(!text.contains("CLAUDE.md"));
+}

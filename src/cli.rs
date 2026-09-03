@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
@@ -65,25 +65,31 @@ pub fn format_memories(memories: &[Memory]) -> String {
 }
 
 #[must_use]
-pub fn format_status(database: &Path, count: i64, agents_path: &Path, configured: bool) -> String {
-    format!(
-        "database: {}\ncount: {count}\nAGENTS.md: {}\nconfigured: {}\n",
+pub fn format_status(database: &Path, count: i64, files: &[PathBuf], configured: bool) -> String {
+    let mut out = format!(
+        "database: {}\ncount: {count}\nconfigured: {}\n",
         database.display(),
-        agents_path.display(),
         if configured { "yes" } else { "no" }
-    )
+    );
+    for path in files {
+        out.push_str(&format!("file: {}\n", path.display()));
+    }
+    out
 }
 
 #[must_use]
 pub fn format_remote_status(
     address: &str,
     count: i64,
-    agents_path: &Path,
+    files: &[PathBuf],
     configured: bool,
 ) -> String {
-    format!(
-        "remote: {address}\ncount: {count}\nAGENTS.md: {}\nconfigured: {}\n",
-        agents_path.display(),
+    let mut out = format!(
+        "remote: {address}\ncount: {count}\nconfigured: {}\n",
         if configured { "yes" } else { "no" }
-    )
+    );
+    for path in files {
+        out.push_str(&format!("file: {}\n", path.display()));
+    }
+    out
 }

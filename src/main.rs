@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use memocap::{cli, config, config::Target, install, paths::Paths, remote, server, tui};
+use memocap::{cli, config, config::Target, hosts, install, paths::Paths, remote, server, tui};
 
 #[derive(Parser)]
 #[command(
@@ -49,19 +49,36 @@ enum Command {
     Forget { id: i64 },
     /// Copy this binary and configure official host rule files.
     Install {
-        /// Configure ~/.codex/AGENTS.md and ~/.claude instead of project files.
         #[arg(long)]
         global: bool,
+        /// Agent hosts (repeatable and comma-separated: codex,claude,grok,pi,opencode).
+        #[arg(long = "host", value_delimiter = ',', action = clap::ArgAction::Append)]
+        host: Vec<String>,
+        /// Every file-writing host (codex, claude, grok).
+        #[arg(long)]
+        all: bool,
     },
     /// Remove only memocap's managed rule blocks.
     Uninstall {
         #[arg(long)]
         global: bool,
+        /// Agent hosts (repeatable and comma-separated: codex,claude,grok,pi,opencode).
+        #[arg(long = "host", value_delimiter = ',', action = clap::ArgAction::Append)]
+        host: Vec<String>,
+        /// Every file-writing host (codex, claude, grok).
+        #[arg(long)]
+        all: bool,
     },
     /// Print install and database status.
     Status {
         #[arg(long)]
         global: bool,
+        /// Agent hosts (repeatable and comma-separated: codex,claude,grok,pi,opencode).
+        #[arg(long = "host", value_delimiter = ',', action = clap::ArgAction::Append)]
+        host: Vec<String>,
+        /// Every file-writing host (codex, claude, grok).
+        #[arg(long)]
+        all: bool,
     },
     /// Serve the same SQLite over HTTP. Token required.
     Serve {
@@ -130,37 +147,48 @@ fn main() -> Result<()> {
                 }
             );
         }
-        Command::Install { global } => {
-            let result = install::install(global)?;
-            println!("已配置：{}", result.agents_path.display());
-            println!("CLAUDE.md：{}", result.claude_path.display());
-            println!("skill：{}", result.skill_path.display());
+        Command::Install { global, host, all } => {
+            let paths = Paths::discover()?;
+            let selection = hosts::resolve_hosts(all, &host, &paths)?;
+            if host.is_empty() && !all {
+                if selection.used_fallback {
+                    println!("no file-writing hosts detected; installing Codex and Claude");
+                } else {
+                    println!("detected: {}", hosts::join_host_names(&selection.hosts));
+                }
+            }
+            let result = install::install(global, &selection.hosts)?;
+            for path in &result.written {
+                println!("已配置：{}", path.display());
+            }
+            for hint in &result.hints {
+                println!("{hint}");
+            }
             println!("程序：{}", result.binary.display());
             println!("数据库：{}", result.database.display());
         }
-        Command::Uninstall { global } => {
+        Command::Uninstall { global, host, all } => {
+            let paths = Paths::discover()?;
+            let selection = hosts::resolve_hosts(all, &host, &paths)?;
             println!(
                 "{}",
-                if install::uninstall(global)? {
+                if install::uninstall(global, &selection.hosts)? {
                     "removed memocap config"
                 } else {
                     "no memocap config found"
                 }
             );
         }
-        Command::Status { global } => {
-            let result = install::status(global)?;
+        Command::Status { global, host, all } => {
+            let paths = Paths::discover()?;
+            let selection = hosts::resolve_hosts(all, &host, &paths)?;
+            let result = install::status(global, &selection.hosts)?;
             match config::resolve_target()? {
                 Target::Local { database } => {
                     let count = cli::count(&database).unwrap_or(0);
                     print!(
                         "{}",
-                        cli::format_status(
-                            &database,
-                            count,
-                            &result.agents_path,
-                            result.configured
-                        )
+                        cli::format_status(&database, count, &result.written, result.configured)
                     );
                 }
                 Target::Remote { address, token } => {
@@ -170,7 +198,7 @@ fn main() -> Result<()> {
                         cli::format_remote_status(
                             &address,
                             count,
-                            &result.agents_path,
+                            &result.written,
                             result.configured
                         )
                     );

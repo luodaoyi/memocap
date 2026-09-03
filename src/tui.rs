@@ -4,23 +4,28 @@ use anyhow::{Context, Result};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Terminal,
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
-    Terminal,
 };
 
-use crate::{install, paths::Paths, store};
+use crate::{
+    hosts::{self, Host},
+    install,
+    paths::Paths,
+    store,
+};
 
 const ACTIONS: [&str; 5] = [
-    "为当前项目配置 AGENTS.md",
-    "为全部 Codex 项目配置 ~/.codex/AGENTS.md",
-    "移除当前项目的 memocap 配置",
+    "为当前项目安装所选宿主",
+    "为全部项目安装所选宿主",
+    "移除当前项目所选宿主配置",
     "查看本地状态",
     "退出",
 ];
@@ -37,11 +42,33 @@ pub fn run() -> Result<()> {
     result
 }
 
+fn host_rows() -> Vec<(Host, bool, bool)> {
+    let paths = Paths::discover().ok();
+    let detected = paths.as_ref().map(hosts::detect).unwrap_or_default();
+    Host::ALL
+        .into_iter()
+        .map(|host| {
+            let found = detected
+                .iter()
+                .any(|item| item.host == host && item.detected);
+            (host, found, found)
+        })
+        .collect()
+}
+
+fn checked_hosts(rows: &[(Host, bool, bool)]) -> Vec<Host> {
+    rows.iter()
+        .filter(|(_, checked, _)| *checked)
+        .map(|(host, _, _)| *host)
+        .collect()
+}
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
+    let mut rows = host_rows();
     let mut selected = 0;
-    let mut message = "Recall-first, then answer. Value-store decisions, preferences, tasks, agreements, and context.".to_owned();
+    let mut message =
+        "Recall-first, then answer. Space toggles hosts; * means detected.".to_owned();
     loop {
-        terminal.draw(|frame| render(frame, selected, &message))?;
+        terminal.draw(|frame| render(frame, &rows, selected, &message))?;
         if !event::poll(Duration::from_millis(250))? {
             continue;
         }
@@ -49,37 +76,68 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()>
             if key.kind == KeyEventKind::Release {
                 continue;
             }
+            let total = rows.len() + ACTIONS.len();
             match key.code {
                 KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                 KeyCode::Up | KeyCode::Char('k') => selected = selected.saturating_sub(1),
                 KeyCode::Down | KeyCode::Char('j') => {
-                    selected = (selected + 1).min(ACTIONS.len() - 1);
+                    selected = (selected + 1).min(total - 1);
                 }
-                KeyCode::Enter => match selected {
-                    0 => message = install_message(false),
-                    1 => message = install_message(true),
-                    2 => {
-                        message = match install::uninstall(false) {
-                            Ok(true) => "已移除当前项目的 memocap 标记块。".to_owned(),
-                            Ok(false) => "当前项目没有 memocap 标记块，未修改文件。".to_owned(),
-                            Err(error) => format!("移除失败：{error:#}"),
+                KeyCode::Char(' ') => {
+                    if selected < rows.len() {
+                        rows[selected].1 = !rows[selected].1;
+                    }
+                }
+                KeyCode::Enter => {
+                    if selected < rows.len() {
+                        rows[selected].1 = !rows[selected].1;
+                    } else {
+                        let hosts = checked_hosts(&rows);
+                        match selected - rows.len() {
+                            0 => message = install_message(false, &hosts),
+                            1 => message = install_message(true, &hosts),
+                            2 => {
+                                message = if hosts.is_empty() {
+                                    "请先勾选至少一个宿主".to_owned()
+                                } else {
+                                    match install::uninstall(false, &hosts) {
+                                        Ok(true) => "已移除所选宿主的 memocap 标记块。".to_owned(),
+                                        Ok(false) => {
+                                            "所选宿主没有 memocap 标记块，未修改文件。".to_owned()
+                                        }
+                                        Err(error) => format!("移除失败：{error:#}"),
+                                    }
+                                };
+                            }
+                            3 => message = status_message(),
+                            _ => return Ok(()),
                         }
                     }
-                    3 => message = status_message(),
-                    _ => return Ok(()),
-                },
+                }
                 _ => {}
             }
         }
     }
 }
 
-fn install_message(global: bool) -> String {
-    match install::install(global) {
-        Ok(result) => format!(
-            "已配置 {}。重开 Codex 会话即可加载。",
-            result.agents_path.display()
-        ),
+fn install_message(global: bool, hosts: &[Host]) -> String {
+    if hosts.is_empty() {
+        return "请先勾选至少一个宿主".to_owned();
+    }
+    match install::install(global, hosts) {
+        Ok(result) => {
+            let mut parts: Vec<String> = result
+                .written
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect();
+            parts.extend(result.hints);
+            if parts.is_empty() {
+                "已处理所选宿主".to_owned()
+            } else {
+                format!("已配置 {}。", parts.join("；"))
+            }
+        }
         Err(error) => format!("配置失败：{error:#}"),
     }
 }
@@ -98,13 +156,13 @@ fn status_message() -> String {
     }
 }
 
-fn render(frame: &mut ratatui::Frame, selected: usize, message: &str) {
+fn render(frame: &mut ratatui::Frame, rows: &[(Host, bool, bool)], selected: usize, message: &str) {
     let areas = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
         .constraints([
             Constraint::Length(3),
-            Constraint::Min(8),
+            Constraint::Min(10),
             Constraint::Length(4),
         ])
         .split(frame.area());
@@ -116,18 +174,30 @@ fn render(frame: &mut ratatui::Frame, selected: usize, message: &str) {
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::raw("  local memory for four hosts"),
+            Span::raw("  local memory  空格切换宿主  *已检测"),
         ]))
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL)),
         areas[0],
     );
-    let items = ACTIONS.map(ListItem::new);
+    let mut items: Vec<ListItem> = rows
+        .iter()
+        .map(|(host, checked, detected)| {
+            let mark = if *checked { "[x]" } else { "[ ]" };
+            let star = if *detected { " *" } else { "" };
+            ListItem::new(format!("{mark} {}{star}", host.as_str()))
+        })
+        .collect();
+    items.extend(ACTIONS.into_iter().map(ListItem::new));
     let mut state = ListState::default();
     state.select(Some(selected));
     frame.render_stateful_widget(
         List::new(items)
-            .block(Block::default().title(" 操作 ").borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title(" 宿主 / 操作 ")
+                    .borders(Borders::ALL),
+            )
             .highlight_style(Style::default().bg(Color::Blue).fg(Color::White))
             .highlight_symbol("> "),
         areas[1],

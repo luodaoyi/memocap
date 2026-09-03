@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.4 — 2026-09-03
+
+`install` 先探测本机有哪些宿主，再按选择写入，不再一律装 Codex+Claude。
+
+- 探测 Codex、Claude、Grok、Pi、OpenCode。`--host` 可重复或逗号分隔（`codex,claude,grok,pi,opencode`）；`--all` 只覆盖会写文件的 Codex/Claude/Grok。
+- 交互 TUI 勾选；已探测到的标 `*`。非交互且未给 `--host` 时，装已探测到的写文件宿主；一个都没有则回退 Codex+Claude。
+- Grok 写入 `~/.grok/skills/memocap/SKILL.md`（项目目录则 `./.grok/skills/memocap/SKILL.md`）；仅当 `AGENTS.md` 已存在才 upsert。
+- Pi / OpenCode 只打印 `pi install npm:memocap` / `opencode plugin memocap`，不造假文件。
+- `uninstall` / `status` 同样认 `--host`。
+
 ## 0.1.3 — 2026-09-02
 
 记住前先查重，召回默认少灌一点。

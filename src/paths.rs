@@ -1,6 +1,6 @@
 use std::{env, path::PathBuf};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 #[derive(Clone, Debug)]
 pub struct Paths {

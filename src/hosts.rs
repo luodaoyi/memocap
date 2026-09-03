@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 use crate::{agents_block, paths::Paths};
 

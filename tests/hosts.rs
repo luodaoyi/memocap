@@ -171,14 +171,12 @@ fn host_grok_writes_grok_skill_not_claude() {
     let text = fs::read_to_string(&grok_skill).unwrap();
     assert!(text.contains("name: memocap"));
     assert!(!paths.claude_home.join("CLAUDE.md").exists());
-    assert!(
-        !paths
-            .claude_home
-            .join("skills")
-            .join("memocap")
-            .join("SKILL.md")
-            .exists()
-    );
+    assert!(!paths
+        .claude_home
+        .join("skills")
+        .join("memocap")
+        .join("SKILL.md")
+        .exists());
     assert!(!paths.codex_home.join("AGENTS.md").exists());
 }
 
@@ -190,22 +188,18 @@ fn host_claude_does_not_write_grok() {
     fs::create_dir_all(&paths.claude_home).unwrap();
     install::install_with(&paths, true, &[hosts::Host::Claude]).unwrap();
     assert!(paths.claude_home.join("CLAUDE.md").is_file());
-    assert!(
-        paths
-            .claude_home
-            .join("skills")
-            .join("memocap")
-            .join("SKILL.md")
-            .is_file()
-    );
-    assert!(
-        !paths
-            .grok_home
-            .join("skills")
-            .join("memocap")
-            .join("SKILL.md")
-            .exists()
-    );
+    assert!(paths
+        .claude_home
+        .join("skills")
+        .join("memocap")
+        .join("SKILL.md")
+        .is_file());
+    assert!(!paths
+        .grok_home
+        .join("skills")
+        .join("memocap")
+        .join("SKILL.md")
+        .exists());
     assert!(!paths.codex_home.join("AGENTS.md").exists());
 }
 
@@ -228,14 +222,12 @@ fn grok_does_not_create_agents_md() {
     let paths = temp_paths(directory.path());
     install::install_with(&paths, true, &[hosts::Host::Grok]).unwrap();
     assert!(!paths.grok_home.join("AGENTS.md").exists());
-    assert!(
-        paths
-            .grok_home
-            .join("skills")
-            .join("memocap")
-            .join("SKILL.md")
-            .is_file()
-    );
+    assert!(paths
+        .grok_home
+        .join("skills")
+        .join("memocap")
+        .join("SKILL.md")
+        .is_file());
 }
 
 #[test]
@@ -246,14 +238,12 @@ fn host_pi_prints_hint_without_files() {
     assert_eq!(result.hints, vec![hosts::PI_INSTALL.to_owned()]);
     assert!(result.written.is_empty());
     assert!(!paths.claude_home.join("CLAUDE.md").exists());
-    assert!(
-        !paths
-            .grok_home
-            .join("skills")
-            .join("memocap")
-            .join("SKILL.md")
-            .exists()
-    );
+    assert!(!paths
+        .grok_home
+        .join("skills")
+        .join("memocap")
+        .join("SKILL.md")
+        .exists());
 }
 
 #[test]

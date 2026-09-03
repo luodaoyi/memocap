@@ -18,6 +18,8 @@ Pi: `pi install npm:memocap`
 
 OpenCode: `opencode plugin memocap`
 
+`memocap install --host grok,claude` (repeatable) selects hosts; `--all` writes Codex/Claude/Grok. TUI checkboxes mark detected agents.
+
 ## Commands
 
 remember [--force] / recall [--type] [--limit 3] / list / forget

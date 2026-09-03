@@ -18,6 +18,8 @@ Pi：pi install npm:memocap
 
 OpenCode：`opencode plugin memocap`
 
+`memocap install --host grok,claude` 可重复或逗号选择宿主；`--all` 写入 Codex/Claude/Grok。TUI 勾选框会标记已检测到的宿主。
+
 ## 命令
 
 remember [--force] / recall [--type] [--limit 3] / list / forget

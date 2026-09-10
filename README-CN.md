@@ -14,7 +14,9 @@ Codex：`memocap install` 写 AGENTS.md。
 
 Claude：`memocap install` 写 CLAUDE.md 和 skill。
 
-Pi：pi install npm:memocap
+Pi：`pi install npm:memocap`
+
+Windows 上 Pi 通过 Git Bash 跑命令。优先用 PATH 里的 `memocap`；不要写反斜杠绝对路径（`C:\Users\...`），需要绝对路径时用正斜杠并加引号（`"C:/Users/.../memocap.exe"`）。参见 [pi#2080](https://github.com/earendil-works/pi/issues/2080)。
 
 OpenCode：`opencode plugin memocap`
 

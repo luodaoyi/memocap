@@ -240,8 +240,13 @@ fn copy_binary(source: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Format a binary path for agent-facing instructions.
+/// Pi on Windows runs tools via Git Bash, which treats backslash as an escape —
+/// so a Windows path like `C:\\Users\\...\\memocap.exe` becomes `C:Users...`.
+/// Always emit forward slashes so bash and cmd both accept the path.
+/// See: https://github.com/earendil-works/pi/issues/2080
 fn display_binary(path: &Path) -> String {
-    path.display().to_string()
+    path.display().to_string().replace('\\', "/")
 }
 
 #[cfg(test)]
@@ -289,4 +294,13 @@ mod tests {
             Path::new("/home/test/.claude")
         );
     }
+    #[test]
+    fn display_binary_normalizes_backslashes() {
+        let raw = "C:\\Users\\Administrator\\.codex\\bin\\memocap.exe";
+        let normalized = raw.replace('\\', "/");
+        assert_eq!(normalized, "C:/Users/Administrator/.codex/bin/memocap.exe");
+        let already = "C:/Users/Administrator/.codex/bin/memocap.exe";
+        assert_eq!(already.replace('\\', "/"), already);
+    }
+
 }

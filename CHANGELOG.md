@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 — 2026-09-10
+
+Pi / Windows Git Bash：安装写入的二进制路径改用正斜杠，skill / plugin 补路径规则。
+
+- `display_binary` 把 `\\` 换成 `/`，避免 Pi 在 Git Bash 下把 `C:\\Users\\...\\memocap.exe` 吃成 `C:Users...`（[pi#2080](https://github.com/earendil-works/pi/issues/2080)）。
+- AGENTS / skill / Pi plugin RULES：优先 PATH 上的 `memocap`；绝对路径只用正斜杠并加引号。
+- README / README-CN 补 Windows + Pi 说明。
+
 ## 0.1.4 — 2026-09-03
 
 `install` 先探测本机有哪些宿主，再按选择写入，不再一律装 Codex+Claude。

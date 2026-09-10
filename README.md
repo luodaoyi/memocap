@@ -16,6 +16,8 @@ Claude: `memocap install` writes CLAUDE.md and a skill.
 
 Pi: `pi install npm:memocap`
 
+On Windows, Pi runs tools through Git Bash. Prefer `memocap` on PATH; never use backslash absolute paths (`C:\Users\...`) — use forward slashes (`C:/Users/.../memocap.exe`) if you need an absolute path (see [pi#2080](https://github.com/earendil-works/pi/issues/2080)).
+
 OpenCode: `opencode plugin memocap`
 
 `memocap install --host grok,claude` (repeatable) selects hosts; `--all` writes Codex/Claude/Grok. TUI checkboxes mark detected agents.

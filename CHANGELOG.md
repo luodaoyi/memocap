@@ -2,11 +2,11 @@
 
 ## 0.1.5 — 2026-09-10
 
-Pi / Windows Git Bash：安装写入的二进制路径改用正斜杠，skill / plugin 补路径规则。
+Pi / Windows：安装写入的 AGENTS/skill **不再写二进制绝对路径**，一律用 PATH 上的 `memocap`。
 
-- `display_binary` 把 `\\` 换成 `/`，避免 Pi 在 Git Bash 下把 `C:\\Users\\...\\memocap.exe` 吃成 `C:Users...`（[pi#2080](https://github.com/earendil-works/pi/issues/2080)）。
-- AGENTS / skill / Pi plugin RULES：优先 PATH 上的 `memocap`；绝对路径只用正斜杠并加引号。
-- README / README-CN 补 Windows + Pi 说明。
+- `memocap install` 注入 `memocap` 命令名，去掉 `display_binary` 绝对路径（Git Bash 下盘符路径不可靠，[pi#2080](https://github.com/earendil-works/pi/issues/2080)）。
+- skill / Pi plugin RULES / README：强调 PATH；禁止绝对路径。
+- 请用 `pnpm add -g memocap` 或 `pi install npm:memocap` 保证 PATH 可用。
 
 ## 0.1.4 — 2026-09-03
 

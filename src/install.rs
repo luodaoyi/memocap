@@ -101,9 +101,11 @@ fn apply_hosts(paths: &Paths, global: bool, hosts: &[Host]) -> Result<InstallSta
     let cwd = env::current_dir()?;
     let (agents_path, claude_path, skill_path) = host_files(global, paths)?;
     let grok_skill = hosts::grok_skill_path(global, paths, &cwd);
-    let binary = display_binary(&paths.installed_binary);
-    let block = agents_block(&binary);
-    let skill = skill_markdown(&binary);
+    // Always inject the PATH command name. Absolute Windows paths break under
+    // Pi's Git Bash (backslash escapes; drive-letter forms are unreliable).
+    // See https://github.com/earendil-works/pi/issues/2080
+    let block = agents_block("memocap");
+    let skill = skill_markdown("memocap");
     let mut written = Vec::new();
     let mut hints = Vec::new();
     for host in hosts {
@@ -238,10 +240,6 @@ fn copy_binary(source: &Path, destination: &Path) -> Result<()> {
         fs::set_permissions(destination, permissions)?;
     }
     Ok(())
-}
-
-fn display_binary(path: &Path) -> String {
-    path.display().to_string()
 }
 
 #[cfg(test)]

@@ -14,7 +14,9 @@ Codex: `memocap install` writes AGENTS.md.
 
 Claude: `memocap install` writes CLAUDE.md and a skill.
 
-Pi: `pi install npm:memocap`
+Pi: `pi install npm:memocap` (puts `memocap` on PATH; agent rules always call that name — never an absolute binary path).
+
+On Windows, Pi runs tools through Git Bash, which breaks drive-letter absolute paths ([pi#2080](https://github.com/earendil-works/pi/issues/2080)). Install with npm/pnpm global or `pi install npm:memocap` so `memocap` is on PATH.
 
 OpenCode: `opencode plugin memocap`
 

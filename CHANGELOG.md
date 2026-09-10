@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 — 2026-09-10
+
+Pi / Windows：安装写入的 AGENTS/skill **不再写二进制绝对路径**，一律用 PATH 上的 `memocap`。
+
+- `memocap install` 注入 `memocap` 命令名，去掉 `display_binary` 绝对路径（Git Bash 下盘符路径不可靠，[pi#2080](https://github.com/earendil-works/pi/issues/2080)）。
+- skill / Pi plugin RULES / README：强调 PATH；禁止绝对路径。
+- 请用 `pnpm add -g memocap` 或 `pi install npm:memocap` 保证 PATH 可用。
+
 ## 0.1.4 — 2026-09-03
 
 `install` 先探测本机有哪些宿主，再按选择写入，不再一律装 Codex+Claude。
